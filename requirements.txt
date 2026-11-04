@@ -3,4 +3,5 @@ pypdf>=3.17.0
 python-dotenv>=1.0.0
 ibm-watsonx-ai>=0.2.6
 chromadb>=0.4.22
+sentence-transformers>=2.2.2
 requests>=2.31.0

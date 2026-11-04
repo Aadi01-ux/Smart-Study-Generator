@@ -304,37 +304,62 @@ def _extract_json_object(text: str) -> dict | None:
 # ── IBM Embedding Function (ChromaDB-compatible) ─────────────────────────────
 
 from chromadb import Documents, EmbeddingFunction, Embeddings as ChromaEmbeddings
+from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
 
 
 class IBMEmbeddingFunction(EmbeddingFunction[Documents]):
     """ChromaDB-compatible embedding function backed by IBM watsonx.ai.
 
-    Replaces the default sentence-transformers model so no local model is
-    downloaded or run on CPU.  Uses the same IBM credentials already
-    configured for the Granite chat model.
-
-    Subclasses chromadb.EmbeddingFunction so ChromaDB 1.5+ accepts it
-    without errors about missing ``name``, ``get_config``, or
-    ``build_from_config``.
+    Falls back to ChromaDB's built-in sentence-transformers embedding if the
+    IBM Slate API is unavailable or misconfigured, so uploads never crash.
     """
 
     def __init__(self) -> None:
         from ibm_watsonx_ai import Credentials
         from ibm_watsonx_ai.foundation_models import Embeddings
 
-        credentials = Credentials(
-            url=config.IBM_ENDPOINT_URL,
-            api_key=config.IBM_API_KEY,
-        )
-        self._ibm_embeddings = Embeddings(
-            model_id=config.EMBEDDING_MODEL_ID,
-            credentials=credentials,
-            project_id=config.IBM_PROJECT_ID,
-        )
+        self._fallback = False
+        try:
+            credentials = Credentials(
+                url=config.IBM_ENDPOINT_URL,
+                api_key=config.IBM_API_KEY,
+            )
+            self._ibm_embeddings = Embeddings(
+                model_id=config.EMBEDDING_MODEL_ID,
+                credentials=credentials,
+                project_id=config.IBM_PROJECT_ID,
+            )
+            # Probe with a single short text to verify the API works
+            self._ibm_embeddings.embed_documents(texts=["test"])
+            logger.info("IBMEmbeddingFunction: IBM Slate API verified OK.")
+        except Exception as exc:
+            logger.warning(
+                "IBMEmbeddingFunction: IBM Slate API unavailable (%s). "
+                "Falling back to local sentence-transformers embeddings.",
+                exc,
+            )
+            print(
+                f"[IBMEmbeddingFunction] IBM Slate unavailable ({exc}). "
+                "Using local sentence-transformers fallback."
+            )
+            self._fallback = True
+            self._fallback_fn = DefaultEmbeddingFunction()
 
     def __call__(self, input: Documents) -> ChromaEmbeddings:  # noqa: A002
-        """Embed *input* texts and return a list of float vectors."""
-        return self._ibm_embeddings.embed_documents(texts=list(input))
+        """Embed *input* texts using IBM Slate or the local fallback."""
+        if self._fallback:
+            return self._fallback_fn(input)
+        try:
+            return self._ibm_embeddings.embed_documents(texts=list(input))
+        except Exception as exc:
+            logger.warning(
+                "IBMEmbeddingFunction: embed_documents failed (%s). "
+                "Switching to local fallback for this call.",
+                exc,
+            )
+            self._fallback = True
+            self._fallback_fn = DefaultEmbeddingFunction()
+            return self._fallback_fn(input)
 
     @staticmethod
     def name() -> str:
