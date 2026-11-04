@@ -1,0 +1,28 @@
+# Environment secrets -- never commit this
+.env
+
+# Data directories (populated at runtime)
+data/
+chroma_db/
+
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Package build artefacts
+*.egg-info/
+dist/
+build/
+
+# macOS metadata
+.DS_Store
+
+# IDE directories
+.idea/
+.vscode/
