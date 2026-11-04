@@ -25,7 +25,22 @@ def render_upload():
     if stored_docs:
         st.success(f"{len(stored_docs)} document(s) currently stored:")
         for doc in stored_docs:
-            st.markdown(f"• 📄 **{doc.get('filename', doc.get('doc_id', 'Unknown'))}**")
+            doc_id = doc.get("doc_id", "")
+            filename = doc.get("filename", doc_id or "Unknown")
+            col_name, col_btn = st.columns([5, 1])
+            col_name.markdown(f"📄 **{filename}**")
+            if col_btn.button("🗑️ Delete", key=f"del_{doc_id}", help=f"Remove {filename} from the knowledge base"):
+                result = orchestrator.delete_document(doc_id)
+                if result.get("status") == "deleted":
+                    st.success(f"✅ **{filename}** removed from the knowledge base.")
+                else:
+                    st.error(f"❌ Could not delete **{filename}**: {result.get('error', 'Unknown error')}")
+                # Refresh the document list in session state and rerun
+                try:
+                    st.session_state["uploaded_docs"] = orchestrator.list_uploaded_documents()
+                except Exception:
+                    pass
+                st.rerun()
     else:
         st.info("No documents uploaded yet. Upload files below to get started.")
 

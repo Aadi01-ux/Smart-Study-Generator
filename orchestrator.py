@@ -148,6 +148,14 @@ class Orchestrator:
     def list_uploaded_documents(self) -> list:
         return self.vector_db.list_documents()
 
+    def delete_document(self, doc_id: str) -> dict:
+        """Remove all chunks for *doc_id* from the vector database."""
+        try:
+            self.vector_db.delete_document(doc_id)
+            return {"status": "deleted", "doc_id": doc_id}
+        except Exception as e:
+            return {"status": "error", "doc_id": doc_id, "error": str(e)}
+
 
 _orchestrator_instance = None
 
